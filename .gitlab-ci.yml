@@ -2,6 +2,7 @@ pages:
   script:
     - mkdir .public
     - cp -r * .public
+    - cp max_speed.html .public/index.html
     - mv .public public
   artifacts:
     paths:
