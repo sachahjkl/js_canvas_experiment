@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MAX SPEEEED !!!!!!</title>
+    <!-- <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script> -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      /**
+       * @function
+       * @template T
+       * @param {T} initialValue
+       */
+      function makeState(initialValue) {
+        let state = {
+          /** @type {T} */
+          value: initialValue,
+          /** @type {Array<{node: HTMLElement, setter: (v: T) => void }>} */
+          _subscribers: [],
+          /** @param {Node} sender
+           * @param {T} newValue */
+          update: (sender, newValue) => {
+            state.value = newValue;
+            state._subscribers
+              .filter((s) => s.node !== sender)
+              .forEach((s) => s.setter(newValue));
+          },
+        };
+
+        return [
+          () => state.value,
+          state.update,
+          /** @type {(node: Node, setter: (v: T) => void)} */
+          (node, setter) => state._subscribers.push({ node, setter }),
+        ];
+      }
+
+      // Rendering constants
+      const ONE_SECOND_IN_MS = 1000;
+      const MAX_COLOR = parseInt("FFFFFF", 16);
+      const [getBoxCount, updateBoxCount, subBoxCount] = makeState(50);
+      const fontSize = 32;
+      const blockSize = 50;
+      const margin = 10;
+
+      document.addEventListener("DOMContentLoaded", () => {
+        // Get our two canvases
+        const {
+          request,
+          timeout,
+          boxCountLabel,
+          boxCountInput,
+          boxCountInput2,
+        } = window;
+
+        subBoxCount(boxCountInput, (v) => (boxCountInput.value = v));
+        subBoxCount(
+          boxCountInput2,
+          (v) => (boxCountInput2.value = Math.min(boxCountInput2.max, v))
+        );
+        subBoxCount(boxCountLabel, (v) => (boxCountLabel.textContent = v));
+
+        // init run
+        updateBoxCount(null, getBoxCount());
+
+        // Both canvas contexts for each of our rendering techniques
+        const ctxRequest = request.getContext("2d");
+        const ctxTimeout = timeout.getContext("2d");
+
+        // Generic render logic from context and frame delta time
+        const render = (canvasId, active, ctx, delta, nextFrame) => {
+          if (!active) return;
+          let { width, height } = ctx.canvas;
+
+          // Draw background
+          ctx.fillStyle = "black";
+          ctx.fillRect(0, 0, width, height);
+
+          let boxCount = getBoxCount();
+          // Draw some bs to make shit lag
+          for (
+            let index = 0;
+            index < boxCount / (delta == 0 ? 1 : delta);
+            index++
+          ) {
+            ctx.fillStyle = `#${Math.round(Math.random() * MAX_COLOR).toString(
+              16
+            )}`;
+            ctx.fillRect(
+              Math.random() * (width - width * 0.2 - blockSize) + width * 0.1,
+              Math.random() * (height - height * 0.2 - blockSize) +
+                height * 0.1,
+              blockSize,
+              blockSize
+            );
+          }
+
+          // Draw framerate
+
+          let framerate = "0 fps";
+          if (delta == 0) {
+            framerate = "N/A";
+          } else {
+            // display framerate with 1 decimal place
+            framerate = `${(ONE_SECOND_IN_MS / delta).toFixed(1)} fps`;
+          }
+
+          // console.info("Framerate (FPS) for canvas", canvasId, ": ", framerate);
+
+          // draw framerate
+          ctx.fillStyle = "rgba(255, 255, 0, 1)";
+          ctx.fillRect(margin, margin, fontSize * 5 + 2, fontSize + 2 * 2);
+
+          ctx.fillStyle = "black";
+          ctx.font = `${fontSize}px monospace `;
+          ctx.fillText(framerate, margin, fontSize + margin);
+          nextFrame();
+        };
+
+        // Render using the `requestAnimationFrame` method
+        let lastTime = 0;
+        const loopRequest = (time) => {
+          // delta (in ms)
+          const delta = time - lastTime;
+          render(
+            "requestAnimationFrame",
+            window.playRequest.checked,
+            ctxRequest,
+            delta,
+            () => requestAnimationFrame(loopRequest)
+          );
+          lastTime = time;
+        };
+
+        loopRequest(0);
+
+        // Render using the `setTimeout` method
+        let timeoutLastTime = Date.now();
+        const loopTimeout = (time) => {
+          let delta = time - timeoutLastTime;
+          render("timeout", window.playTimeout.checked, ctxTimeout, delta, () =>
+            setTimeout(() => loopTimeout(Date.now()), 0)
+          );
+          timeoutLastTime = time;
+        };
+        loopTimeout(Date.now());
+      });
+    </script>
+  </head>
+  <body class="bg-neutral-100">
+    <main class="mx-auto px-4 mt-5">
+      <h1 class="text-3xl font-bold mb-3">TESTING MAX SPEEEEED 🤪</h1>
+      <div class="mb-4">
+        Box count:
+        <label for="boxCount" class="block">
+          <span class="min-w-[15ch] inline-block">1 to 10,000,000</span>
+          <input
+            class="w-96"
+            type="range"
+            name="boxCountInput"
+            id="boxCountInput"
+            min="1"
+            max="100000"
+            step="50"
+            oninput="updateBoxCount(this,this.value)"
+          />
+        </label>
+        <label for="boxCount" class="block">
+          <span class="min-w-[15ch] inline-block"> 1 to 10,000</span>
+          <input
+            class="w-96"
+            type="range"
+            name="boxCountInput2"
+            id="boxCountInput2"
+            min="1"
+            max="10000"
+            step="50"
+            oninput="updateBoxCount(this,this.value)"
+          />
+        </label>
+        <span class="inline-block min-w-[6ch]" id="boxCountLabel"></span>
+      </div>
+
+      <div class="articles flex gap-3 flex-wrap">
+        <article>
+          <label class="mb-3 text-xl">
+            <input
+              type="checkbox"
+              name="playRequest"
+              id="playRequest"
+              checked="checked"
+            />
+            <code>requestAnimationFrame</code>
+          </label>
+
+          <div class="border shadow-sm p-2 rounded-sm bg-white m-2">
+            <canvas width="500" height="500" id="request"></canvas>
+          </div>
+        </article>
+        <article>
+          <label class="mb-3 text-xl">
+            <input
+              type="checkbox"
+              name="playTimeout"
+              id="playTimeout"
+              checked="checked"
+            />
+            <code>setTimeout(0)</code></label
+          >
+          <div class="border p-2 shadow-sm bg-white rounded-sm m-2">
+            <canvas width="500" height="500" id="timeout"></canvas>
+          </div>
+        </article>
+      </div>
+    </main>
+  </body>
+</html>
