@@ -7,6 +7,6 @@ In this repo, I tested rendering to the native HTML canvas element using two dif
 
 To control how much strain I apply on the rendering loop each cycle, I use a slider that controls how many random squares we draw for each frame.
 
-[Demo](https://gitlab.io/sachahjkl/js_canvas_experiment):
+[Demo](https://sachahjkl.gitlab.io/js_canvas_experiment):
 
-[![Demo](./images/demo.png)](https://gitlab.io/sachahjkl/js_canvas_experiment)
+[![Demo](./images/demo.png)](https://sachahjkl.gitlab.io/js_canvas_experiment)
