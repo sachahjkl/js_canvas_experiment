@@ -71,7 +71,7 @@
 
         // Generic render logic from context and frame delta time
         const render = (canvasId, active, ctx, delta, nextFrame) => {
-          if (!active) return;
+          if (active) {
           let { width, height } = ctx.canvas;
 
           // Draw background
@@ -117,6 +117,7 @@
           ctx.font = `${fontSize}px monospace `;
           ctx.fillText(framerate, margin, fontSize + margin);
           nextFrame();
+        }
         };
 
         // Render using the `requestAnimationFrame` method
