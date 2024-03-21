@@ -6,6 +6,9 @@
     <title>MAX SPEEEED !!!!!!</title>
     <!-- <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script> -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+
     <link rel="shortcut icon" href="favicon.png" type="image/x-icon" />
     <script>
       /**
@@ -17,33 +20,56 @@
         let state = {
           /** @type {T} */
           value: initialValue,
-          /** @type {Array<{node: HTMLElement, setter: (v: T) => void }>} */
-          _subscribers: [],
-          /** @param {Node} sender
-           * @param {T} newValue */
-          update: (sender, newValue) => {
+          /** @type {Array<{source: HTMLElement, setter: (v: T) => void }>} */
+          subscribers: [],
+          /** @type {(source: HTMLElement, newValue: T) => void} */
+          update: (source, newValue) => {
             state.value = newValue;
-            state._subscribers
-              .filter((s) => s.node !== sender)
+            state.subscribers
+              .filter((s) => source !== s.source)
               .forEach((s) => s.setter(newValue));
           },
         };
 
-        return [
-          () => state.value,
+        /**
+         * @type {[ () => T, (source: HTMLElement, newValue: T) => void, (source: HTMLElement, setter: (v: T) => void) => void ]}
+         */
+        let stateAccess = [
+          (get) => state.value,
           state.update,
-          /** @type {(node: Node, setter: (v: T) => void)} */
-          (node, setter) => state._subscribers.push({ node, setter }),
+          (source, setter) => state.subscribers.push({ source, setter }),
         ];
+        return stateAccess;
       }
 
       // Rendering constants
       const ONE_SECOND_IN_MS = 1000;
       const MAX_COLOR = parseInt("FFFFFF", 16);
+      const FONT_SIZE = 32;
+      const BLOCK_SIZE = 20;
+      const MARGIN = 10;
+      const MAX_MAX_BOX_COUNT = 100_000;
+      const DEFAULT_MAX_BOX_COUNT = 25_000;
+      const MEASURE_INTERVAL_BOX = 100;
+      const MEASURE_INTERVAL_MS = 10;
+      const MAX_SAMPLES = 5_000;
+      const MIN_BOX_COUNT = 0;
+      /** @type {Array<{x: number, y: number}>} */
+      let requestBaseValue = [];
+      /** @type {Array<{x: number, y: number}>} */
+      let timeoutBaseValue = [];
+      const [getRequestSamples, updateRequestSamples, subRequestSamples] =
+        makeState(requestBaseValue);
+      const [getTimeoutSamples, updateTimeoutSamples, subTimeoutSamples] =
+        makeState(timeoutBaseValue);
+      const [getMaxBoxCount, updateMaxBoxCount, subMaxBoxCount] =
+        makeState(MAX_MAX_BOX_COUNT);
       const [getBoxCount, updateBoxCount, subBoxCount] = makeState(50);
-      const fontSize = 32;
-      const blockSize = 50;
-      const margin = 10;
+      const [getShouldSample, updateShouldSample, subShouldSample] =
+        makeState(false);
+      const [getAutoIncr, updateAutoIncr, subAutoIncr] = makeState(false);
+
+      const getBoxCountScaledMedium = (boxCount) => boxCount / 10;
 
       document.addEventListener("DOMContentLoaded", () => {
         // Get our two canvases
@@ -52,8 +78,108 @@
           timeout,
           boxCountLabel,
           boxCountInput,
+          labelText,
           boxCountInput2,
+          labelText2,
+          statistics,
+          shouldSample,
+          autoIncr,
+          fpsCanvas,
+          maxBoxCountInput,
+          maxBoxCountLabel,
         } = window;
+
+        // Init chart
+
+        const chart = new Chart(fpsCanvas, {
+          type: "scatter",
+          data: {
+            datasets: [
+              {
+                label: "requestAnimationFrame",
+                data: [],
+                borderColor: "rgb(54, 162, 235)",
+                backgroundColor: "rgba(54, 162, 235,0.5)",
+              },
+              {
+                label: "setTimeout(0)",
+                data: [],
+                borderColor: "rgb(255, 99, 132)",
+                backgroundColor: "rgba(255, 99, 132,0.5)",
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+
+            scales: {
+              x: {
+                type: "linear",
+                position: "bottom",
+              },
+            },
+          },
+        });
+
+        // Hook elements to state
+        shouldSample.checked = getShouldSample() ? "checked" : "";
+        autoIncr.checked = getAutoIncr() ? "checked" : "";
+        maxBoxCountInput.max = MAX_MAX_BOX_COUNT;
+        maxBoxCountInput.value = DEFAULT_MAX_BOX_COUNT;
+
+        const updateChart = _.throttle(() => {
+          const requestSamples = getRequestSamples();
+          const timeoutSamples = getTimeoutSamples();
+          console.log("samples length", requestSamples.length);
+          chart.data.datasets.filter(
+            (it) => it.label === "requestAnimationFrame"
+          )[0].data = requestSamples;
+          chart.data.datasets.filter(
+            (it) => it.label === "setTimeout(0)"
+          )[0].data = timeoutSamples;
+
+          chart.update();
+        }, 1000);
+
+        subRequestSamples(fpsCanvas, updateChart);
+
+        subShouldSample("log", (v) =>
+          console.log("should sample:", v ? "enabled" : "disabled")
+        );
+        subAutoIncr("log", (v) =>
+          console.log("auto-incr:", v ? "enabled" : "disabled")
+        );
+
+        boxCountInput.min =
+          boxCountInput2.min =
+          maxBoxCountInput.min =
+            MIN_BOX_COUNT;
+
+        subMaxBoxCount(boxCountInput, (v) => {
+          boxCountInput.max = v;
+        });
+
+        subMaxBoxCount(labelText, (v) => {
+          labelText.textContent = `${MIN_BOX_COUNT.toLocaleString(
+            "en"
+          )} to ${v.toLocaleString("en")}`;
+        });
+
+        subMaxBoxCount(
+          boxCountInput2,
+          (v) => (boxCountInput2.max = getBoxCountScaledMedium(v))
+        );
+
+        subMaxBoxCount(
+          maxBoxCountLabel,
+          (v) => (maxBoxCountLabel.textContent = v.toLocaleString("en"))
+        );
+
+        subMaxBoxCount(labelText2, (v) => {
+          labelText2.textContent = `${MIN_BOX_COUNT.toLocaleString(
+            "en"
+          )} to ${getBoxCountScaledMedium(v).toLocaleString("en")}`;
+        });
 
         subBoxCount(boxCountInput, (v) => (boxCountInput.value = v));
         subBoxCount(
@@ -64,65 +190,70 @@
 
         // init run
         updateBoxCount(null, getBoxCount());
+        updateMaxBoxCount(null, DEFAULT_MAX_BOX_COUNT);
 
         // Both canvas contexts for each of our rendering techniques
         const ctxRequest = request.getContext("2d");
         const ctxTimeout = timeout.getContext("2d");
 
         // Generic render logic from context and frame delta time
-        const render = (canvasId, active, ctx, delta, nextFrame) => {
+        const render = (canvasId, active, ctx, delta, nextFrame, sampler) => {
           if (active) {
-          let { width, height } = ctx.canvas;
+            let { width, height } = ctx.canvas;
 
-          // Draw background
-          ctx.fillStyle = "black";
-          ctx.fillRect(0, 0, width, height);
+            // Draw background
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, width, height);
 
-          let boxCount = getBoxCount();
-          // Draw some bs to make shit lag
-          for (
-            let index = 0;
-            index < boxCount / (delta == 0 ? 1 : delta);
-            index++
-          ) {
-            ctx.fillStyle = `#${Math.round(Math.random() * MAX_COLOR).toString(
-              16
-            )}`;
-            ctx.fillRect(
-              Math.random() * (width - width * 0.2 - blockSize) + width * 0.1,
-              Math.random() * (height - height * 0.2 - blockSize) +
-                height * 0.1,
-              blockSize,
-              blockSize
-            );
+            let boxCount = getBoxCount();
+            // Draw some bs to make shit lag
+            for (let index = 0; index < boxCount; index++) {
+              ctx.fillStyle = `#${Math.round(
+                Math.random() * MAX_COLOR
+              ).toString(16)}`;
+              ctx.fillRect(
+                Math.random() * (width - width * 0.2 - BLOCK_SIZE) +
+                  width * 0.1,
+                Math.random() * (height - height * 0.2 - BLOCK_SIZE) +
+                  height * 0.1,
+                BLOCK_SIZE,
+                BLOCK_SIZE
+              );
+            }
+
+            // Draw framerate
+
+            let framerateValue = 0;
+            if (delta !== 0) {
+              // display framerate with 1 decimal place
+              framerateValue = (ONE_SECOND_IN_MS / delta).toFixed(1);
+            }
+            let framerateText = `${framerateValue} fps`;
+
+            // console.info("Framerate (FPS) for canvas", canvasId, ": ", framerate);
+
+            // draw framerate
+            ctx.fillStyle = "rgba(255, 255, 0, 1)";
+            ctx.fillRect(MARGIN, MARGIN, FONT_SIZE * 5 + 2, FONT_SIZE + 2 * 2);
+
+            ctx.fillStyle = "black";
+            ctx.font = `${FONT_SIZE}px monospace `;
+            ctx.fillText(framerateText, MARGIN, FONT_SIZE + MARGIN);
+            if (getShouldSample()) {
+              sampler(framerateValue, boxCount);
+            }
           }
-
-          // Draw framerate
-
-          let framerate = "0 fps";
-          if (delta == 0) {
-            framerate = "N/A";
-          } else {
-            // display framerate with 1 decimal place
-            framerate = `${(ONE_SECOND_IN_MS / delta).toFixed(1)} fps`;
-          }
-
-          // console.info("Framerate (FPS) for canvas", canvasId, ": ", framerate);
-
-          // draw framerate
-          ctx.fillStyle = "rgba(255, 255, 0, 1)";
-          ctx.fillRect(margin, margin, fontSize * 5 + 2, fontSize + 2 * 2);
-
-          ctx.fillStyle = "black";
-          ctx.font = `${fontSize}px monospace `;
-          ctx.fillText(framerate, margin, fontSize + margin);
-        }
           nextFrame();
-        
         };
 
         // Render using the `requestAnimationFrame` method
         let lastTime = 0;
+        let requestSample = _.throttle((framerate, boxCount) => {
+          const samples = getRequestSamples();
+          if (samples.length >= MAX_SAMPLES) return;
+          samples.push({ y: Math.round(framerate), x: boxCount });
+          updateRequestSamples("requestSampler", getRequestSamples());
+        }, MEASURE_INTERVAL_MS);
         const loopRequest = (time) => {
           // delta (in ms)
           const delta = time - lastTime;
@@ -131,7 +262,8 @@
             window.playRequest.checked,
             ctxRequest,
             delta,
-            () => requestAnimationFrame(loopRequest)
+            () => requestAnimationFrame(loopRequest),
+            requestSample
           );
           lastTime = time;
         };
@@ -140,14 +272,33 @@
 
         // Render using the `setTimeout` method
         let timeoutLastTime = Date.now();
+        let timeoutSampler = _.throttle((framerate, boxCount) => {
+          const samples = getTimeoutSamples();
+          if (samples.length >= MAX_SAMPLES) return;
+          samples.push({ y: Math.round(framerate), x: boxCount });
+          updateTimeoutSamples("timeoutSampler", getTimeoutSamples());
+        }, MEASURE_INTERVAL_MS);
         const loopTimeout = (time) => {
           let delta = time - timeoutLastTime;
-          render("timeout", window.playTimeout.checked, ctxTimeout, delta, () =>
-            setTimeout(() => loopTimeout(Date.now()), 0)
+          render(
+            "timeout",
+            window.playTimeout.checked,
+            ctxTimeout,
+            delta,
+            () => setTimeout(() => loopTimeout(Date.now()), 0),
+            timeoutSampler
           );
           timeoutLastTime = time;
         };
         loopTimeout(Date.now());
+
+        // start box count increment step
+        let interval = setInterval(() => {
+          if (!getAutoIncr()) return;
+          const bc = getBoxCount();
+          let boxCount = (bc + MEASURE_INTERVAL_BOX) % getMaxBoxCount();
+          updateBoxCount(null, boxCount);
+        }, MEASURE_INTERVAL_MS);
       });
     </script>
   </head>
@@ -156,33 +307,72 @@
       <h1 class="text-3xl font-bold mb-3">TESTING MAX SPEEEEED 🤪</h1>
       <div class="mb-4">
         Box count:
-        <label for="boxCount" class="block">
-          <span class="min-w-[15ch] inline-block">1 to 10,000,000</span>
+        <label for="boxCountInput" class="block">
+          <span class="min-w-[15ch] inline-block" id="labelText"
+            >1 to 1,000,000</span
+          >
           <input
             class="w-96"
             type="range"
             name="boxCountInput"
             id="boxCountInput"
-            min="1"
-            max="100000"
+            min="0"
+            max="10000"
             step="50"
-            oninput="updateBoxCount(this,this.value)"
+            oninput="updateBoxCount(this,Number(this.value))"
           />
         </label>
-        <label for="boxCount" class="block">
-          <span class="min-w-[15ch] inline-block"> 1 to 10,000</span>
+        <label for="boxCountInput2" class="block">
+          <span class="min-w-[15ch] inline-block" id="labelText2">
+            1 to 10,000</span
+          >
           <input
             class="w-96"
             type="range"
             name="boxCountInput2"
             id="boxCountInput2"
-            min="1"
-            max="10000"
+            min="0"
+            max="100"
             step="50"
-            oninput="updateBoxCount(this,this.value)"
+            oninput="updateBoxCount(this,Number(this.value))"
           />
         </label>
-        <span class="inline-block min-w-[6ch]" id="boxCountLabel"></span>
+        <label for="smallBoxCountInput" class="block">
+          <span class="min-w-[15ch] inline-block" id="labelTextSmall">
+            1 to 100</span
+          >
+          <input
+            class="w-96"
+            type="range"
+            name="smallBoxCountInput"
+            id="smallBoxCountInput"
+            min="0"
+            max="100"
+            step="1"
+            oninput="updateBoxCount(this,Number(this.value))"
+          />
+        </label>
+        Current box count:
+        <span class="inline-block min-w-[6ch]" id="boxCountLabel"
+          >NUMBER OF BOXES DRAWN FOR A FRAME</span
+        >
+        <label for="boxCount" class="block">
+          <span class="min-w-[15ch] inline-block"> Max box count</span>
+          <input
+            class="w-96"
+            type="range"
+            name="maxBoxCountInput"
+            id="maxBoxCountInput"
+            min="0"
+            max="100"
+            step="50"
+            oninput="updateMaxBoxCount(this,Number(this.value))"
+          />
+        </label>
+        Current max box count:
+        <span class="inline-block min-w-[6ch]" id="maxBoxCountLabel"
+          >NUMBER OF BOXES DRAWN FOR A FRAME</span
+        >
       </div>
 
       <div class="articles flex gap-3 flex-wrap">
@@ -215,6 +405,39 @@
             <canvas width="500" height="500" id="timeout"></canvas>
           </div>
         </article>
+      </div>
+      <hr class="my-12 h-0.5 border-t-2 bg-neutral-900 dark:bg-white/10" />
+      <div class="statistics">
+        <h2 class="text-2xl font-bold mb-3">Statistics</h2>
+        <label for="shouldSample" class="block">
+          Enable sampling:
+          <input
+            type="checkbox"
+            name="shouldSample"
+            id="shouldSample"
+            oninput="updateShouldSample(this, this.checked)"
+          />
+        </label>
+        <label for="autoIncr" class="block">
+          Enable auto-increment box count:
+          <input
+            type="checkbox"
+            name="autoIncr"
+            id="autoIncr"
+            oninput="updateAutoIncr(this, this.checked)"
+          />
+        </label>
+        <div
+          class="m-3 mb-10 bg-white p-5 rounded-lg border shadow-sm"
+          id="statistics"
+          style="
+            position: relative;
+            height: min(500px, 100vw);
+            width: min(1000px, 100vw);
+          "
+        >
+          <canvas id="fpsCanvas"></canvas>
+        </div>
       </div>
     </main>
   </body>
