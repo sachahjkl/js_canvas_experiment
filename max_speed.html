@@ -8,6 +8,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+    <style>
+
+      body {
+        font-family:"Comic Sans MS", 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      }
+    </style>
 
     <link rel="shortcut icon" href="favicon.png" type="image/x-icon" />
     <script>
@@ -302,17 +308,18 @@
       });
     </script>
   </head>
-  <body class="bg-neutral-100">
-    <main class="mx-auto px-4 mt-5">
+  <body class="bg-neutral-100 px-2">
+    <main class="mx-auto container px-4 mt-2 bg-white p-5 rounded-lg border shadow-sm">
       <h1 class="text-3xl font-bold mb-3">TESTING MAX SPEEEEED 🤪</h1>
-      <div class="mb-4">
-        Box count:
+      <hr class="my-2"/>
+      <div >
+        <p class="font-bold mb-3">🟦 Box count:</p>
         <label for="boxCountInput" class="block">
           <span class="min-w-[15ch] inline-block" id="labelText"
             >1 to 1,000,000</span
           >
           <input
-            class="w-96"
+            class="max-w-96 w-full"
             type="range"
             name="boxCountInput"
             id="boxCountInput"
@@ -327,7 +334,7 @@
             1 to 10,000</span
           >
           <input
-            class="w-96"
+            class="max-w-96 w-full"
             type="range"
             name="boxCountInput2"
             id="boxCountInput2"
@@ -342,7 +349,7 @@
             1 to 100</span
           >
           <input
-            class="w-96"
+            class="max-w-96 w-full"
             type="range"
             name="smallBoxCountInput"
             id="smallBoxCountInput"
@@ -352,14 +359,16 @@
             oninput="updateBoxCount(this,Number(this.value))"
           />
         </label>
-        Current box count:
-        <span class="inline-block min-w-[6ch]" id="boxCountLabel"
+        <span class="font-bold my-3">Current box count:</span>
+
+        <span class="inline-block px-2 border-2 border-emerald-200 bg-emerald-100 text-emerald-900 rounded font-bold" id="boxCountLabel"
           >NUMBER OF BOXES DRAWN FOR A FRAME</span
         >
+        <hr class="my-2"/>
         <label for="boxCount" class="block">
-          <span class="min-w-[15ch] inline-block"> Max box count</span>
+          <span class="min-w-[15ch] inline-block"> 🔥 Max box count</span>
           <input
-            class="w-96"
+            class="max-w-96 w-full"
             type="range"
             name="maxBoxCountInput"
             id="maxBoxCountInput"
@@ -370,10 +379,11 @@
           />
         </label>
         Current max box count:
-        <span class="inline-block min-w-[6ch]" id="maxBoxCountLabel"
+        <span class="inline-block px-2 border-2 border-emerald-200 bg-emerald-100 text-emerald-900 rounded font-bold" id="maxBoxCountLabel"
           >NUMBER OF BOXES DRAWN FOR A FRAME</span
         >
       </div>
+      <hr class="my-2"/>
 
       <div class="articles flex gap-3 flex-wrap">
         <article>
@@ -387,8 +397,8 @@
             <code>requestAnimationFrame</code>
           </label>
 
-          <div class="border shadow-sm p-2 rounded-sm bg-white m-2">
-            <canvas width="500" height="500" id="request"></canvas>
+          <div class="border shadow-sm p-2 rounded-sm bg-white m-2 aspect-square max-w-max">
+            <canvas class="aspect-square w-full" width="500" height="500" id="request"></canvas>
           </div>
         </article>
         <article>
@@ -401,14 +411,14 @@
             />
             <code>setTimeout(0)</code></label
           >
-          <div class="border p-2 shadow-sm bg-white rounded-sm m-2">
-            <canvas width="500" height="500" id="timeout"></canvas>
+          <div class="border p-2 shadow-sm bg-white rounded-sm m-2 aspect-square max-w-max">
+            <canvas class="aspect-square w-full" width="500" height="500" id="timeout"></canvas>
           </div>
         </article>
       </div>
-      <hr class="my-12 h-0.5 border-t-2 bg-neutral-900 dark:bg-white/10" />
+      <hr class="my-2"/>
       <div class="statistics">
-        <h2 class="text-2xl font-bold mb-3">Statistics</h2>
+        <h2 class="text-2xl font-bold mb-3">Statistics 📊</h2>
         <label for="shouldSample" class="block">
           Enable sampling:
           <input
@@ -428,12 +438,11 @@
           />
         </label>
         <div
-          class="m-3 mb-10 bg-white p-5 rounded-lg border shadow-sm"
+          class="mx-auto mb-10 bg-slate-50 p-5 rounded-lg border shadow-sm aspect-video my-3"
           id="statistics"
           style="
             position: relative;
-            height: min(500px, 100vw);
-            width: min(1000px, 100vw);
+            max-width: 100%;
           "
         >
           <canvas id="fpsCanvas"></canvas>
