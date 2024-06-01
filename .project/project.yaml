@@ -1,0 +1,10 @@
+name: "js_canvas_experiment"
+description: "https://sachahjkl.gitlab.io/js_canvas_experiment - Testing rendering to the native HTML canvas element using two different methods : (requestAnimationFrame and setTimeout(0))"
+topics:
+  - "html"
+  - "javascript"
+homepage: ""
+source:
+  provider: gitlab
+  namespace: "sachahjkl"
+  path: "sachahjkl/js_canvas_experiment"
