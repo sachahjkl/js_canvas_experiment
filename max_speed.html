@@ -9,44 +9,14 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
     <style>
-
       body {
-        font-family:"Comic Sans MS", 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-family: "Comic Sans MS", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
       }
     </style>
 
     <link rel="shortcut icon" href="favicon.png" type="image/x-icon" />
-    <script>
-      /**
-       * @function
-       * @template T
-       * @param {T} initialValue
-       */
-      function makeState(initialValue) {
-        let state = {
-          /** @type {T} */
-          value: initialValue,
-          /** @type {Array<{source: HTMLElement, setter: (v: T) => void }>} */
-          subscribers: [],
-          /** @type {(source: HTMLElement, newValue: T) => void} */
-          update: (source, newValue) => {
-            state.value = newValue;
-            state.subscribers
-              .filter((s) => source !== s.source)
-              .forEach((s) => s.setter(newValue));
-          },
-        };
-
-        /**
-         * @type {[ () => T, (source: HTMLElement, newValue: T) => void, (source: HTMLElement, setter: (v: T) => void) => void ]}
-         */
-        let stateAccess = [
-          (get) => state.value,
-          state.update,
-          (source, setter) => state.subscribers.push({ source, setter }),
-        ];
-        return stateAccess;
-      }
+    <script type="module">
+      import { makeGlobal, signal, effect, derived } from "./lib.js";
 
       // Rendering constants
       const ONE_SECOND_IN_MS = 1000;
@@ -60,22 +30,32 @@
       const MEASURE_INTERVAL_MS = 10;
       const MAX_SAMPLES = 2_500;
       const MIN_BOX_COUNT = 0;
+      const MIN_BOX_COUNT_LABEL = MIN_BOX_COUNT.toLocaleString("en");
       /** @type {Array<{x: number, y: number}>} */
       let requestBaseValue = [];
       /** @type {Array<{x: number, y: number}>} */
       let timeoutBaseValue = [];
-      const [getRequestSamples, updateRequestSamples, subRequestSamples] =
-        makeState(requestBaseValue);
-      const [getTimeoutSamples, updateTimeoutSamples, subTimeoutSamples] =
-        makeState(timeoutBaseValue);
-      const [getMaxBoxCount, updateMaxBoxCount, subMaxBoxCount] =
-        makeState(MAX_MAX_BOX_COUNT);
-      const [getBoxCount, updateBoxCount, subBoxCount] = makeState(50);
-      const [getShouldSample, updateShouldSample, subShouldSample] =
-        makeState(false);
-      const [getAutoIncr, updateAutoIncr, subAutoIncr] = makeState(false);
 
-      const getBoxCountScaledMedium = (boxCount) => boxCount / 10;
+      const requestSamples = signal(requestBaseValue);
+      const timeoutSamples = signal(timeoutBaseValue);
+      const maxBoxCount = signal(DEFAULT_MAX_BOX_COUNT);
+      const mediumMaxBoxCount = derived(() => Math.ceil(maxBoxCount.value / 10));
+      const smallMaxBoxCount = derived(() => Math.ceil(maxBoxCount.value / 100));
+      const boxCount = signal(50);
+      const shouldSample = signal(false);
+      const autoIncr = signal(false);
+
+      makeGlobal(
+        { maxBoxCount },
+        { boxCount },
+        { mediumBoxCountInput },
+        { smallBoxCountInput },
+        { labelText },
+        { labelTextMedium },
+        { labelTextSmall },
+        { shouldSample },
+        { autoIncr }
+      );
 
       document.addEventListener("DOMContentLoaded", () => {
         // Get our two canvases
@@ -84,9 +64,11 @@
           timeout,
           boxCountLabel,
           boxCountInput,
+          mediumBoxCountInput,
+          smallBoxCountInput,
           labelText,
-          boxCountInput2,
-          labelText2,
+          labelTextMedium,
+          labelTextSmall,
           statistics,
           shouldSample,
           autoIncr,
@@ -127,76 +109,70 @@
           },
         });
 
-        // Hook elements to state
-        shouldSample.checked = getShouldSample() ? "checked" : "";
-        autoIncr.checked = getAutoIncr() ? "checked" : "";
-        maxBoxCountInput.max = MAX_MAX_BOX_COUNT;
-        maxBoxCountInput.value = DEFAULT_MAX_BOX_COUNT;
-
         const updateChart = _.throttle(() => {
-          const requestSamples = getRequestSamples();
-          const timeoutSamples = getTimeoutSamples();
-          console.log("samples length", requestSamples.length);
-          chart.data.datasets.filter(
-            (it) => it.label === "requestAnimationFrame"
-          )[0].data = requestSamples;
-          chart.data.datasets.filter(
-            (it) => it.label === "setTimeout(0)"
-          )[0].data = timeoutSamples;
+          console.log("samples length", requestSamples.value.length);
+          chart.data.datasets.filter((it) => it.label === "requestAnimationFrame")[0].data = requestSamples.value;
+          chart.data.datasets.filter((it) => it.label === "setTimeout(0)")[0].data = timeoutSamples.value;
 
           chart.update();
         }, 1000);
 
-        subRequestSamples(fpsCanvas, updateChart);
+        // Hook elements to state
+        effect(() => (shouldSample.checked = shouldSample.value ? "checked" : ""));
+        effect(() => (autoIncr.checked = autoIncr.value ? "checked" : ""));
+        // effect(() => (maxBoxCountInput.value = maxBoxCount.value));
+        effect(() => (maxBoxCountLabel.textContent = maxBoxCount.value.toLocaleString("en")));
 
-        subShouldSample("log", (v) =>
-          console.log("should sample:", v ? "enabled" : "disabled")
-        );
-        subAutoIncr("log", (v) =>
-          console.log("auto-incr:", v ? "enabled" : "disabled")
-        );
+        maxBoxCountInput.max = MAX_MAX_BOX_COUNT;
 
-        boxCountInput.min =
-          boxCountInput2.min =
-          maxBoxCountInput.min =
-            MIN_BOX_COUNT;
+        effect(() => {
+          let currentRequestSamples = requestSamples.value;
+          updateChart();
+        });
+        // subRequestSamples.value(fpsCanvas, updateChart);
 
-        subMaxBoxCount(boxCountInput, (v) => {
-          boxCountInput.max = v;
+        effect(() => console.log("should sample:", shouldSample.value ? "enabled" : "disabled"));
+        effect(() => console.log("auto-incr:", autoIncr.value ? "enabled" : "disabled"));
+
+        // Set minimum box count for all inputs
+        boxCountInput.min = MIN_BOX_COUNT;
+        mediumBoxCountInput.min = MIN_BOX_COUNT;
+        maxBoxCountInput.min = MIN_BOX_COUNT;
+
+        // Update labels and values when maxBoxCount.value changes
+        effect(() => {
+          let currentMaxBoxCount = maxBoxCount.value;
+          labelText.textContent = `${MIN_BOX_COUNT_LABEL} to ${currentMaxBoxCount.toLocaleString("en")}`;
+          boxCountInput.max = currentMaxBoxCount;
+          boxCountInput.value = Math.min(currentMaxBoxCount, Number(boxCountInput.value));
+          maxBoxCountInput.value = currentMaxBoxCount;
         });
 
-        subMaxBoxCount(labelText, (v) => {
-          labelText.textContent = `${MIN_BOX_COUNT.toLocaleString(
-            "en"
-          )} to ${v.toLocaleString("en")}`;
+        effect(() => {
+          let currentMediumMaxBoxCount = mediumMaxBoxCount.value;
+          labelTextMedium.textContent = `${MIN_BOX_COUNT_LABEL} to ${currentMediumMaxBoxCount.toLocaleString("en")}`;
+          mediumBoxCountInput.max = currentMediumMaxBoxCount;
+          mediumBoxCountInput.value = Math.min(currentMediumMaxBoxCount, Number(mediumBoxCountInput.value));
         });
 
-        subMaxBoxCount(
-          boxCountInput2,
-          (v) => (boxCountInput2.max = getBoxCountScaledMedium(v))
-        );
-
-        subMaxBoxCount(
-          maxBoxCountLabel,
-          (v) => (maxBoxCountLabel.textContent = v.toLocaleString("en"))
-        );
-
-        subMaxBoxCount(labelText2, (v) => {
-          labelText2.textContent = `${MIN_BOX_COUNT.toLocaleString(
-            "en"
-          )} to ${getBoxCountScaledMedium(v).toLocaleString("en")}`;
+        effect(() => {
+          let currentSmallMaxBoxCount = smallMaxBoxCount.value;
+          labelTextSmall.textContent = `${MIN_BOX_COUNT_LABEL} to ${currentSmallMaxBoxCount.toLocaleString("en")}`;
+          smallBoxCountInput.max = currentSmallMaxBoxCount;
+          smallBoxCountInput.value = Math.min(currentSmallMaxBoxCount, Number(smallBoxCountInput.value));
         });
 
-        subBoxCount(boxCountInput, (v) => (boxCountInput.value = v));
-        subBoxCount(
-          boxCountInput2,
-          (v) => (boxCountInput2.value = Math.min(boxCountInput2.max, v))
-        );
-        subBoxCount(boxCountLabel, (v) => (boxCountLabel.textContent = v));
+        effect(() => {
+          let currentBoxCount = boxCount.value;
 
-        // init run
-        updateBoxCount(null, getBoxCount());
-        updateMaxBoxCount(null, DEFAULT_MAX_BOX_COUNT);
+          console.log("currentBoxCount", currentBoxCount);
+
+          boxCountLabel.textContent = currentBoxCount.toLocaleString("en");
+          boxCountInput.value = currentBoxCount;
+          mediumBoxCountInput.value = currentBoxCount;
+          smallBoxCountInput.value = currentBoxCount;
+        });
+
 
         // Both canvas contexts for each of our rendering techniques
         const ctxRequest = request.getContext("2d");
@@ -211,17 +187,12 @@
             ctx.fillStyle = "black";
             ctx.fillRect(0, 0, width, height);
 
-            let boxCount = getBoxCount();
             // Draw some bs to make shit lag
-            for (let index = 0; index < boxCount; index++) {
-              ctx.fillStyle = `#${Math.round(
-                Math.random() * MAX_COLOR
-              ).toString(16)}`;
+            for (let index = 0; index < boxCount.value; index++) {
+              ctx.fillStyle = `#${Math.round(Math.random() * MAX_COLOR).toString(16)}`;
               ctx.fillRect(
-                Math.random() * (width - width * 0.2 - BLOCK_SIZE) +
-                  width * 0.1,
-                Math.random() * (height - height * 0.2 - BLOCK_SIZE) +
-                  height * 0.1,
+                Math.random() * (width - width * 0.2 - BLOCK_SIZE) + width * 0.1,
+                Math.random() * (height - height * 0.2 - BLOCK_SIZE) + height * 0.1,
                 BLOCK_SIZE,
                 BLOCK_SIZE
               );
@@ -245,8 +216,8 @@
             ctx.fillStyle = "black";
             ctx.font = `${FONT_SIZE}px monospace `;
             ctx.fillText(framerateText, MARGIN, FONT_SIZE + MARGIN);
-            if (getShouldSample()) {
-              sampler(framerateValue, boxCount);
+            if (shouldSample.value) {
+              sampler(framerateValue, boxCount.value);
             }
           }
           nextFrame();
@@ -255,10 +226,10 @@
         // Render using the `requestAnimationFrame` method
         let lastTime = 0;
         let requestSample = _.throttle((framerate, boxCount) => {
-          const samples = getRequestSamples();
+          const samples = requestSamples.value;
           if (samples.length >= MAX_SAMPLES) return;
           samples.push({ y: Math.round(framerate), x: boxCount });
-          updateRequestSamples("requestSampler", getRequestSamples());
+          requestSamples.value = samples;
         }, MEASURE_INTERVAL_MS);
         const loopRequest = (time) => {
           // delta (in ms)
@@ -279,10 +250,10 @@
         // Render using the `setTimeout` method
         let timeoutLastTime = Date.now();
         let timeoutSampler = _.throttle((framerate, boxCount) => {
-          const samples = getTimeoutSamples();
+          const samples = timeoutSamples.value;
           if (samples.length >= MAX_SAMPLES) return;
           samples.push({ y: Math.round(framerate), x: boxCount });
-          updateTimeoutSamples("timeoutSampler", getTimeoutSamples());
+          timeoutSamples.value = samples;
         }, MEASURE_INTERVAL_MS);
         const loopTimeout = (time) => {
           let delta = time - timeoutLastTime;
@@ -300,24 +271,22 @@
 
         // start box count increment step
         let interval = setInterval(() => {
-          if (!getAutoIncr()) return;
-          const bc = getBoxCount();
-          let boxCount = (bc + MEASURE_INTERVAL_BOX) % getMaxBoxCount();
-          updateBoxCount(null, boxCount);
+          if (!autoIncr.value) return;
+          boxCount.value = (boxCount.value + MEASURE_INTERVAL_BOX) % maxBoxCount.value;
         }, MEASURE_INTERVAL_MS);
       });
     </script>
   </head>
-  <body class="bg-neutral-100 px-2">
-    <main class="mx-auto container px-4 mt-2 bg-white p-5 rounded-lg border shadow-sm">
-      <h1 class="text-3xl font-bold mb-3">TESTING MAX SPEEEEED 🤪</h1>
-      <hr class="my-2"/>
-      <div >
-        <p class="font-bold mb-3">🟦 Box count:</p>
+  <body class="bg-neutral-100 justify-center flex">
+    <main class="mx-3 container px-4 mt-2 bg-white p-5 rounded-lg border shadow-sm">
+      <h1 class="text-3xl font-bold mb-3">TESTING MAX SPEEEEED <span class="hover:scale-[4] inline-block transition"> <span class="transition hover:animate-spin inline-block">🤪</span></span></h1>
+      <hr class="my-2" />
+      <div>
+        <p class="font-bold mb-3">
+          <span class=" hover:scale-[4] inline-block transition"> <span class="transition hover:animate-pulse inline-block">🟦 </span></span>
+          Box count:</p>
         <label for="boxCountInput" class="block">
-          <span class="min-w-[15ch] inline-block" id="labelText"
-            >1 to 1,000,000</span
-          >
+          <span class="min-w-[15ch] inline-block" id="labelText">1 to 100,000</span>
           <input
             class="max-w-96 w-full"
             type="range"
@@ -326,28 +295,24 @@
             min="0"
             max="10000"
             step="50"
-            oninput="updateBoxCount(this,Number(this.value))"
+            oninput="boxCount.value = Number(this.value)"
           />
         </label>
-        <label for="boxCountInput2" class="block">
-          <span class="min-w-[15ch] inline-block" id="labelText2">
-            1 to 10,000</span
-          >
+        <label for="mediumBoxCountInput" class="block">
+          <span class="min-w-[15ch] inline-block" id="labelTextMedium"> 1 to 10,000</span>
           <input
             class="max-w-96 w-full"
             type="range"
-            name="boxCountInput2"
-            id="boxCountInput2"
+            name="mediumBoxCountInput"
+            id="mediumBoxCountInput"
             min="0"
             max="100"
-            step="50"
-            oninput="updateBoxCount(this,Number(this.value))"
+            step="5"
+            oninput="boxCount.value = Number(this.value)"
           />
         </label>
         <label for="smallBoxCountInput" class="block">
-          <span class="min-w-[15ch] inline-block" id="labelTextSmall">
-            1 to 100</span
-          >
+          <span class="min-w-[15ch] inline-block" id="labelTextSmall"> 1 to 100</span>
           <input
             class="max-w-96 w-full"
             type="range"
@@ -356,17 +321,19 @@
             min="0"
             max="100"
             step="1"
-            oninput="updateBoxCount(this,Number(this.value))"
+            oninput="boxCount.value = Number(this.value)"
           />
         </label>
         <span class="font-bold my-3">Current box count:</span>
 
-        <span class="inline-block px-2 border-2 border-emerald-200 bg-emerald-100 text-emerald-900 rounded font-bold" id="boxCountLabel"
+        <span
+          class="inline-block px-2 border-2 border-emerald-200 bg-emerald-100 text-emerald-900 rounded font-bold hover:scale-110 active:scale-90 transition select-none"
+          id="boxCountLabel"
           >NUMBER OF BOXES DRAWN FOR A FRAME</span
         >
-        <hr class="my-2"/>
+        <hr class="my-2" />
         <label for="boxCount" class="block">
-          <span class="min-w-[15ch] inline-block"> 🔥 Max box count</span>
+          <span class="min-w-[15ch] inline-block"> <span class=" hover:scale-[4] inline-block transition"> <span class="transition hover:animate-bounce inline-block">🔥</span></span> Max box count</span>
           <input
             class="max-w-96 w-full"
             type="range"
@@ -375,25 +342,22 @@
             min="0"
             max="100"
             step="50"
-            oninput="updateMaxBoxCount(this,Number(this.value))"
+            oninput="maxBoxCount.value = Number(this.value)"
           />
         </label>
         Current max box count:
-        <span class="inline-block px-2 border-2 border-emerald-200 bg-emerald-100 text-emerald-900 rounded font-bold" id="maxBoxCountLabel"
+        <span
+          class="inline-block px-2 border-2 border-emerald-200 bg-emerald-100 text-emerald-900 rounded font-bold hover:scale-110 active:scale-90 transition select-none"
+          id="maxBoxCountLabel"
           >NUMBER OF BOXES DRAWN FOR A FRAME</span
         >
       </div>
-      <hr class="my-2"/>
+      <hr class="my-2" />
 
       <div class="articles flex gap-3 flex-wrap">
         <article>
-          <label class="mb-3 text-xl">
-            <input
-              type="checkbox"
-              name="playRequest"
-              id="playRequest"
-              checked="checked"
-            />
+          <label for="playRequest" class="mb-3 text-xl">
+            <input type="checkbox" name="playRequest" id="playRequest" checked="checked" />
             <code>requestAnimationFrame</code>
           </label>
 
@@ -402,13 +366,8 @@
           </div>
         </article>
         <article>
-          <label class="mb-3 text-xl">
-            <input
-              type="checkbox"
-              name="playTimeout"
-              id="playTimeout"
-              checked="checked"
-            />
+          <label for="playTimeout" class="mb-3 text-xl">
+            <input type="checkbox" name="playTimeout" id="playTimeout" checked="checked" />
             <code>setTimeout(0)</code></label
           >
           <div class="border p-2 shadow-sm bg-white rounded-sm m-2 aspect-square max-w-max">
@@ -416,38 +375,28 @@
           </div>
         </article>
       </div>
-      <hr class="my-2"/>
+      <hr class="my-2" />
       <div class="statistics">
         <h2 class="text-2xl font-bold mb-3">Statistics 📊</h2>
         <label for="shouldSample" class="block">
           Enable sampling:
-          <input
-            type="checkbox"
-            name="shouldSample"
-            id="shouldSample"
-            oninput="updateShouldSample(this, this.checked)"
-          />
+          <input type="checkbox" name="shouldSample" id="shouldSample" oninput="shouldSample.value = this.checked" />
         </label>
         <label for="autoIncr" class="block">
           Enable auto-increment box count:
-          <input
-            type="checkbox"
-            name="autoIncr"
-            id="autoIncr"
-            oninput="updateAutoIncr(this, this.checked)"
-          />
+          <input type="checkbox" name="autoIncr" id="autoIncr" oninput="autoIncr.value = this.checked" />
         </label>
         <div
           class="mx-auto mb-10 bg-slate-50 p-5 rounded-lg border shadow-sm aspect-video my-3"
           id="statistics"
-          style="
-            position: relative;
-            max-width: 100%;
-          "
+          style="position: relative; max-width: 100%"
         >
           <canvas id="fpsCanvas"></canvas>
         </div>
       </div>
+
+      
     </main>
+    <div class="fader w-full h-32 bg-gradient-to-t from-white to-white/0 fixed bottom-0 z-10 pointer-events-none"></div>
   </body>
 </html>
