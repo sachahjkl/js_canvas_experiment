@@ -13,7 +13,7 @@ To manage the state of the app, I use a homemade signals implementation. You can
 This greatly simplifies the code and makes it easier to reason about the (not so complex) state of the page.
 It allows me to have a single source of truth to coordinate updates to the state.
 
-NB: This is a very simple implementation. I'm not sure if it's the best way to do it. I'm open to suggestions. (And more importantly, it might not be the best solution for performance)
+> NB: This is a very simple implementation. I'm not sure if it's the best way to do it. I'm open to suggestions. (And more importantly, it might not be the best solution for performance)
 
 A native Javascript implementation of signals is currently being evaluated in a TC39 proposal. see [Propose signals](https://github.com/tc39/proposal-signals)
 
