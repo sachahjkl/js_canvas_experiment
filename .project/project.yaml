@@ -3,8 +3,8 @@ description: "https://sachahjkl.github.io/js_canvas_experiment/ - Testing render
 topics:
   - "html"
   - "javascript"
-homepage: ""
+homepage: "https://sachahjkl.github.io/js_canvas_experiment/"
 source:
-  provider: gitlab
+  provider: github
   namespace: "sachahjkl"
   path: "sachahjkl/js_canvas_experiment"
