@@ -17,6 +17,6 @@ It allows me to have a single source of truth to coordinate updates to the state
 
 A native Javascript implementation of signals is currently being evaluated in a TC39 proposal. see [Propose signals](https://github.com/tc39/proposal-signals)
 
-[Demo](https://sachahjkl.gitlab.io/js_canvas_experiment):
+[Demo](https://sachahjkl.github.io/js_canvas_experiment/):
 
-[![Demo](./images/demo.png)](https://sachahjkl.gitlab.io/js_canvas_experiment)
+[![Demo](./images/demo.png)](https://sachahjkl.github.io/js_canvas_experiment/)
