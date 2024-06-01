@@ -7,11 +7,13 @@ In this repo, I tested rendering to the native HTML canvas element using two dif
 
 To control how much strain I apply on the rendering loop each cycle, I use a slider that controls how many random squares we draw for each frame.
 
-## Signal's implementation
+## Signals implementation in JS
 
-To manage the state of the app, I use a homemade signal implementation. You can find the code in the [lib.js](./lib.js) file.  To
-This greatly simplifies the code and makes it easier to reason about the (not so complex) state of the page. 
+To manage the state of the app, I use a homemade signals implementation. You can find the code in the [lib.js](./lib.js) file.
+This greatly simplifies the code and makes it easier to reason about the (not so complex) state of the page.
 It allows me to have a single source of truth to coordinate updates to the state.
+
+NB: This is a very simple implementation. I'm not sure if it's the best way to do it. I'm open to suggestions. (And more importantly, it might not be the best solution for performance)
 
 A native Javascript implementation of signals is currently being evaluated in a TC39 proposal. see [Propose signals](https://github.com/tc39/proposal-signals)
 
