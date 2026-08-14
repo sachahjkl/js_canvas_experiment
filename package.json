@@ -1,0 +1,14 @@
+{
+  "name": "js-canvas-experiment",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "lint": "oxlint app.js lib.js",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check ."
+  },
+  "devDependencies": {
+    "oxfmt": "^0.63.0",
+    "oxlint": "^1.78.0"
+  }
+}

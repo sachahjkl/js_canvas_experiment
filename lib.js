@@ -68,7 +68,7 @@ export const render = (
     sampler(x = 0, y = 0) {
       console.log("You should override the sampler function", x, y);
     },
-  }
+  },
 ) => {
   const { ctx, active, numberOfBoxesToDraw, delta, nextFrame, sampler } = options;
 
@@ -91,7 +91,7 @@ export const render = (
         Math.random() * (width - width * 0.2 - BLOCK_SIZE) + width * 0.1,
         Math.random() * (height - height * 0.2 - BLOCK_SIZE) + height * 0.1,
         BLOCK_SIZE,
-        BLOCK_SIZE
+        BLOCK_SIZE,
       );
     }
 
@@ -145,7 +145,7 @@ export function makeRenderer(
     sampler(x = 0, y = 0) {
       console.log("You should override the sampler function", x, y);
     },
-  }
+  },
 ) {
   let previousRenderStartTimestamp = 0;
 
@@ -197,7 +197,7 @@ export function makeSampler(
     set samples(value) {
       console.log("You should override the samples setter function", value);
     },
-  }
+  },
 ) {
   const { maxSamples, measureIntervalMs } = options;
   return throttle((x, y) => {
@@ -236,7 +236,7 @@ export function makeChart(
       },
     ],
     chartUpdateIntervalMs: 1000,
-  }
+  },
 ) {
   Chart.register(...registerables);
   const chart = new Chart(options.canvas, {
